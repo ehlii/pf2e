@@ -6,6 +6,7 @@ import { LocalizePF2e } from "@system/localize";
 import { ChatMessageSourcePF2e } from "@module/chat-message/data";
 import { CharacterAttributes, CharacterResources } from "@actor/character/data";
 import { Duration } from "luxon";
+import { SpellcastingEntryOptions } from "@actor/creature/spellcasting";
 
 /** A macro for the Rest for the Night quasi-action */
 export async function restForTheNight(options: ActionDefaultOptions): Promise<ChatMessagePF2e[]> {
@@ -29,7 +30,7 @@ export async function restForTheNight(options: ActionDefaultOptions): Promise<Ch
     const messages: PreCreate<ChatMessageSourcePF2e>[] = [];
 
     for (const actor of characters) {
-        const actorUpdates: ActorUpdates = { attributes: {}, resources: {} };
+        const actorUpdates: ActorUpdates = { attributes: {}, resources: {}, spellcastingEntries: [] };
         const itemUpdates: EmbeddedDocumentUpdateData<ItemPF2e>[] = [];
         // A list of messages informing the user of updates made due to rest
         const statements: string[] = [];
@@ -91,10 +92,13 @@ export async function restForTheNight(options: ActionDefaultOptions): Promise<Ch
         }
 
         // Spellcasting entries and focus points
-        const spellcastingRecharge = actor.spellcasting.recharge();
+        const spellcastingRecharge = actor.spellcastingNew.recharge();
         itemUpdates.push(...spellcastingRecharge.itemUpdates);
         if (spellcastingRecharge.actorUpdates?.["data.resources.focus.value"]) {
             actorUpdates.resources.focus = { value: spellcastingRecharge.actorUpdates?.["data.resources.focus.value"] };
+        }
+        if (spellcastingRecharge.actorUpdates?.["data.spellcastingEntries"]) {
+            actorUpdates.spellcastingEntries = spellcastingRecharge.actorUpdates?.["data.spellcastingEntries"];
         }
 
         // Action Frequencies
@@ -129,13 +133,15 @@ export async function restForTheNight(options: ActionDefaultOptions): Promise<Ch
         // Collect temporary crafted items to remove
         const temporaryItems = actor.inventory.filter((i) => i.isTemporary).map((i) => i.id);
 
-        const hasActorUpdates = Object.keys({ ...actorUpdates.attributes, ...actorUpdates.resources }).length > 0;
+        const hasActorUpdates =
+            Object.keys({ ...actorUpdates.attributes, ...actorUpdates.resources, ...actorUpdates.spellcastingEntries })
+                .length > 0;
         const hasItemUpdates = itemUpdates.length > 0;
         const removeTempItems = temporaryItems.length > 0;
 
         // Updated actor with the sweet fruits of rest
         if (hasActorUpdates) {
-            await actor.update({ data: actorUpdates }, { render: false });
+            await actor.update({ data: actorUpdates } /* , { render: !(hasItemUpdates || removeTempItems) }*/);
         }
 
         if (hasItemUpdates) {
@@ -147,11 +153,14 @@ export async function restForTheNight(options: ActionDefaultOptions): Promise<Ch
             statements.push(game.i18n.localize(translations.Message.TemporaryItems));
         }
 
-        if (spellcastingRecharge.actorUpdates) {
+        if (spellcastingRecharge.actorUpdates?.["data.resources.focus.value"]) {
             statements.push(game.i18n.localize(translations.Message.FocusPoints));
         }
 
-        if (spellcastingRecharge.itemUpdates.length > 0) {
+        if (
+            spellcastingRecharge.itemUpdates.length ||
+            spellcastingRecharge.actorUpdates?.["data.spellcastingEntries"]
+        ) {
             statements.push(game.i18n.localize(translations.Message.SpellSlots));
         }
 
@@ -198,4 +207,5 @@ export async function restForTheNight(options: ActionDefaultOptions): Promise<Ch
 interface ActorUpdates {
     attributes: DeepPartial<CharacterAttributes>;
     resources: DeepPartial<CharacterResources>;
+    spellcastingEntries: DeepPartial<SpellcastingEntryOptions>[];
 }

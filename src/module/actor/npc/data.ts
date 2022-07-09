@@ -23,6 +23,7 @@ import { AbilityString, ActorAlliance, SaveType } from "@actor/types";
 import { MeleePF2e } from "@item";
 import { ValueAndMax } from "@module/data";
 import type { NPCPF2e } from ".";
+import { SpellcastingEntryOptions } from "@actor/creature/spellcasting";
 
 interface NPCSource extends BaseCreatureSource<"npc", NPCSystemSource> {
     flags: DeepPartial<NPCFlags>;
@@ -119,6 +120,9 @@ interface NPCSystemData extends CreatureSystemData, NPCSystemSource {
     traits: NPCTraitsData;
 
     customModifiers: Record<string, ModifierPF2e[]>;
+
+    /** Actor spellcasting entries */
+    spellcastingEntries: SpellcastingEntryOptions[];
 }
 
 interface NPCTraitsData extends CreatureTraitsData, NPCTraitsSource {

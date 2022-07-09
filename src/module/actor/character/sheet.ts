@@ -22,6 +22,7 @@ import { CharacterSheetData, CraftingEntriesSheetData, FeatCategorySheetData } f
 import { PCSheetTabManager } from "./tab-manager";
 import { AbilityBuilderPopup } from "../sheet/popups/ability-builder";
 import { CharacterConfig } from "./config";
+import { OneToFour } from "@module/data";
 
 class CharacterSheetPF2e extends CreatureSheetPF2e<CharacterPF2e> {
     protected readonly actorConfigClass = CharacterConfig;
@@ -203,6 +204,7 @@ class CharacterSheetPF2e extends CreatureSheetPF2e<CharacterPF2e> {
         sheetData.tabVisibility = deepClone(this.actor.data.flags.pf2e.sheetTabs);
 
         // Return data for rendering
+        console.log(sheetData);
         return sheetData;
     }
 
@@ -393,6 +395,9 @@ class CharacterSheetPF2e extends CreatureSheetPF2e<CharacterPF2e> {
         $html.find(".adjust-stat-select").on("change", (event) => this.onChangeAdjustStat(event));
         $html.find(".adjust-item-stat").on("click contextmenu", (event) => this.onClickAdjustItemStat(event));
         $html.find(".adjust-item-stat-select").on("change", (event) => this.onChangeAdjustItemStat(event));
+        $html
+            .find(".adjust-spellcasting-entry-stat-select")
+            .on("change", (event) => this.onChangeAdjustEntryProficiency(event));
 
         {
             // ensure correct tab name is displayed after actor update
@@ -781,7 +786,7 @@ class CharacterSheetPF2e extends CreatureSheetPF2e<CharacterPF2e> {
         await this.actor.update({ [propertyKey]: newValue });
     }
 
-    /** Handle changing of lore and spellcasting entry proficiency-rank via dropdown */
+    /** Handle changing of lore proficiency-rank via dropdown */
     private async onChangeAdjustItemStat(event: JQuery.TriggeredEvent<HTMLElement>): Promise<void> {
         const $select = $(event.delegateTarget);
         const propertyKey = $select.attr("data-item-property") ?? "";
@@ -793,12 +798,7 @@ class CharacterSheetPF2e extends CreatureSheetPF2e<CharacterPF2e> {
 
         // Retrieve and validate the updated value
         const newValue = ((): number | undefined => {
-            if (item instanceof SpellcastingEntryPF2e) {
-                const dispatch: Record<string, () => number> = {
-                    "data.proficiency.value": () => Math.clamped(selectedValue, 0, 4),
-                };
-                return dispatch[propertyKey]?.();
-            } else if (item instanceof LorePF2e) {
+            if (item instanceof LorePF2e) {
                 return Math.clamped(selectedValue, 0, 4);
             } else {
                 throw ErrorPF2e("Item not recognized");
@@ -809,6 +809,26 @@ class CharacterSheetPF2e extends CreatureSheetPF2e<CharacterPF2e> {
             await item.update({ [propertyKey]: newValue });
         }
         if (newValue !== getProperty(item.data, propertyKey)) {
+            ui.notifications.warn(game.i18n.localize("PF2E.ErrorMessage.MinimumProfLevelSetByFeatures"));
+        }
+    }
+
+    /** Handle changing spellcasting entry proficiency-rank via dropdown */
+    private async onChangeAdjustEntryProficiency(event: JQuery.TriggeredEvent<HTMLElement>): Promise<void> {
+        const $select = $(event.delegateTarget);
+        const selectedValue = Number($select.val());
+
+        const itemId = $select.closest(".item").attr("data-item-id") ?? "";
+        const entry = this.actor.spellcastingNew.get(itemId, { strict: true });
+
+        // Retrieve and validate the updated value
+        const newValue = Math.clamped(selectedValue, 0, 4) as OneToFour;
+
+        await this.actor.spellcastingNew.editSpellcastingEntry({ id: entry.id, proficiency: newValue });
+
+        const updatedEntry = this.actor.spellcastingNew.get(itemId);
+
+        if (newValue !== updatedEntry?.proficiency) {
             ui.notifications.warn(game.i18n.localize("PF2E.ErrorMessage.MinimumProfLevelSetByFeatures"));
         }
     }

@@ -23,6 +23,7 @@ import { NPCData, NPCSource, NPCStrike } from "./data";
 import { NPCSheetPF2e } from "./sheet";
 import { StrikeAttackTraits } from "./strike-attack-traits";
 import { VariantCloneParams } from "./types";
+import { ActorSpellcastingNew, SpellcastingEntryPF2eNew } from "@actor/creature/spellcasting";
 
 class NPCPF2e extends CreaturePF2e {
     override get allowedItemTypes(): (ItemType | "physical")[] {
@@ -139,7 +140,6 @@ class NPCPF2e extends CreaturePF2e {
 
         // Extract as separate variables for easier use in this method.
         const { damageDice, statisticsModifiers, strikes, rollNotes } = this.synthetics;
-        const itemTypes = this.itemTypes;
         const baseLevel = this.data._source.data.details.level.value;
 
         if (this.isElite) {
@@ -700,70 +700,8 @@ class NPCPF2e extends CreaturePF2e {
             }
         }
 
-        // Spellcasting Entries
-        for (const entry of itemTypes.spellcastingEntry) {
-            const { ability, tradition } = entry;
-            const abilityMod = data.abilities[ability].mod;
-
-            // There are still some bestiary entries where these values are strings
-            entry.data.data.spelldc.dc = Number(entry.data.data.spelldc.dc);
-            entry.data.data.spelldc.value = Number(entry.data.data.spelldc.value);
-
-            const baseSelectors = ["all", `${ability}-based`, "spell-attack-dc"];
-            const attackSelectors = [
-                `${tradition}-spell-attack`,
-                "spell-attack",
-                "spell-attack-roll",
-                "attack",
-                "attack-roll",
-            ];
-            const saveSelectors = [`${tradition}-spell-dc`, "spell-dc"];
-
-            // Check Modifiers, calculate using the user configured value
-            const baseMod = Number(entry.data.data?.spelldc?.value ?? 0);
-            const attackModifiers = [
-                new ModifierPF2e("PF2E.BaseModifier", baseMod - abilityMod, MODIFIER_TYPE.UNTYPED),
-                new ModifierPF2e(CONFIG.PF2E.abilities[ability], abilityMod, MODIFIER_TYPE.ABILITY),
-                ...extractModifiers(this.synthetics, [...baseSelectors, ...attackSelectors]),
-            ];
-
-            // Save Modifiers, reverse engineer using the user configured value - 10
-            const baseDC = Number(entry.data.data?.spelldc?.dc ?? 0);
-            const saveModifiers = [
-                new ModifierPF2e("PF2E.BaseModifier", baseDC - 10 - abilityMod, MODIFIER_TYPE.UNTYPED),
-                new ModifierPF2e(CONFIG.PF2E.abilities[ability], abilityMod, MODIFIER_TYPE.ABILITY),
-                ...extractModifiers(this.synthetics, [...baseSelectors, ...saveSelectors]),
-            ];
-
-            // Assign statistic data to the spellcasting entry
-            entry.statistic = new Statistic(this, {
-                slug: sluggify(entry.name),
-                label: CONFIG.PF2E.magicTraditions[tradition],
-                notes: extractNotes(rollNotes, [...baseSelectors, ...attackSelectors]),
-                domains: baseSelectors,
-                rollOptions: entry.getRollOptions("spellcasting"),
-                check: {
-                    type: "spell-attack-roll",
-                    modifiers: attackModifiers,
-                    domains: attackSelectors,
-                },
-                dc: {
-                    modifiers: saveModifiers,
-                    domains: saveSelectors,
-                },
-            });
-
-            entry.data.data.statisticData = entry.statistic.getChatData();
-
-            // The elite/weak modifier doesn't update the source data, so we do it again here
-            if (this.isElite) {
-                entry.data.data.spelldc.dc += 2;
-                entry.data.data.spelldc.value += 2;
-            } else if (this.isWeak) {
-                entry.data.data.spelldc.dc -= 2;
-                entry.data.data.spelldc.value -= 2;
-            }
-        }
+        // Spellcasting Entries (new)
+        this.prepareSpellcasting();
 
         // Initiative
         this.prepareInitiative();
@@ -777,6 +715,8 @@ class NPCPF2e extends CreaturePF2e {
                 console.error(`PF2e | Failed to execute onAfterPrepareData on rule element ${rule}.`, error);
             }
         }
+
+        console.log(this);
     }
 
     prepareSaves(): void {
@@ -815,6 +755,54 @@ class NPCPF2e extends CreaturePF2e {
         }
 
         this.saves = saves as Record<SaveType, Statistic>;
+    }
+
+    override prepareSpellcasting(): void {
+        super.prepareSpellcasting();
+
+        const systemData = this.data.data;
+
+        // Convert all spellcasting entry data into a spellcasting entry object
+        const spellcastingEntries = systemData.spellcastingEntries.map((entry) => {
+            return new SpellcastingEntryPF2eNew(this, {
+                id: entry.id,
+                name: entry.name,
+                ability: entry.ability,
+                tradition: entry.tradition,
+                prepared: entry.prepared,
+                slots: entry.slots,
+                showSlotlessLevels: entry.showSlotlessLevels,
+                proficiency: entry.proficiency,
+                sort: entry.sort,
+                autoHeightenLevel: entry.autoHeightenLevel,
+            });
+        });
+
+        for (const entry of spellcastingEntries) {
+            // Set highest spellcasting level
+            const highestSpell = Math.max(...entry.spells.map((s) => s.level));
+            const actorSpellLevel = Math.ceil((this.level ?? 0) / 2);
+            entry.highestLevel = Math.min(10, Math.max(highestSpell, actorSpellLevel));
+
+            // Statistic data
+            const stat = entry.generateStatistic();
+            entry.statistic = stat;
+            entry.statisticData = stat.getChatData();
+
+            // The elite/weak modifier doesn't update the source data, so we do it again here
+            if (this.isElite) {
+                entry.spelldc.dc += 2;
+                entry.spelldc.value += 2;
+            } else if (this.isWeak) {
+                entry.spelldc.dc -= 2;
+                entry.spelldc.value -= 2;
+            }
+        }
+
+        this.spellcastingNew = new ActorSpellcastingNew(
+            this,
+            spellcastingEntries.sort((a, b) => a.sort - b.sort)
+        );
     }
 
     protected async getAttackEffects(sourceItemData: MeleeData): Promise<RollNotePF2e[]> {

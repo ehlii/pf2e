@@ -1,34 +1,22 @@
-import { ActorPF2e } from "@actor";
-import { SpellcastingEntryPF2e } from "@item";
-import { SpellcastingEntrySource, SpellcastingEntrySystemData } from "@item/spellcasting-entry/data";
-import { pick } from "@util";
+import { CharacterPF2e, CreaturePF2e, NPCPF2e } from "@actor";
+import { SpellcastingEntry, SpellcastingEntryPF2eNew } from "@actor/creature/spellcasting";
 
-function createEmptySpellcastingEntry(actor: ActorPF2e): Embedded<SpellcastingEntryPF2e> {
-    return new SpellcastingEntryPF2e(
-        {
-            name: "Untitled",
-            type: "spellcastingEntry",
-            data: {
-                ability: { value: "cha" },
-                spelldc: { value: 0, dc: 0, mod: 0 },
-                tradition: { value: "arcane" },
-                prepared: { value: "innate" },
-            },
-        },
-        { actor }
-    ) as Embedded<SpellcastingEntryPF2e>;
+function createEmptySpellcastingEntry(actor: CharacterPF2e | NPCPF2e): SpellcastingEntryPF2eNew {
+    return new SpellcastingEntryPF2eNew(actor, {
+        name: "UntitledPlaceholder",
+        tradition: "arcane",
+        ability: "cha",
+        prepared: { value: "innate" },
+    });
 }
 
 /** Dialog to create or edit spellcasting entries. It works on a clone of spellcasting entry, but will not persist unless the changes are accepted */
-class SpellcastingCreateAndEditDialog extends FormApplication<Embedded<SpellcastingEntryPF2e>> {
-    private actor: ActorPF2e;
+class SpellcastingCreateAndEditDialog extends FormApplication<SpellcastingEntryPF2eNew> {
+    private actor: CreaturePF2e;
 
-    constructor(object: ActorPF2e | Embedded<SpellcastingEntryPF2e>, options: Partial<FormApplicationOptions>) {
-        super(
-            object instanceof ActorPF2e ? createEmptySpellcastingEntry(object) : object.clone({}, { keepId: true }),
-            options
-        );
-        this.actor = object instanceof ActorPF2e ? object : object.actor;
+    constructor(actor: CreaturePF2e, entry: SpellcastingEntryPF2eNew, options: Partial<FormApplicationOptions>) {
+        super(entry, options);
+        this.actor = actor;
     }
 
     static override get defaultOptions(): FormApplicationOptions {
@@ -47,7 +35,7 @@ class SpellcastingCreateAndEditDialog extends FormApplication<Embedded<Spellcast
         return {
             ...(await super.getData()),
             actor: this.actor,
-            data: this.object.toObject(false).data,
+            data: this.object,
             magicTraditions: CONFIG.PF2E.magicTraditions,
             spellcastingTypes: CONFIG.PF2E.preparationType,
             abilities: CONFIG.PF2E.abilities,
@@ -58,18 +46,18 @@ class SpellcastingCreateAndEditDialog extends FormApplication<Embedded<Spellcast
         const wasInnate = this.object.isInnate;
 
         // Unflatten the form data, so that we may make some modifications
-        const inputData: DeepPartial<SpellcastingEntrySource> = expandObject(formData);
+        const inputData: DeepPartial<SpellcastingEntry> = expandObject(formData);
 
         // When swapping to innate, convert to cha, but don't force it
-        if (inputData.data?.prepared?.value === "innate" && !wasInnate && inputData.data?.ability) {
-            inputData.data.ability.value = "cha";
+        if (inputData.prepared?.value === "innate" && !wasInnate && inputData.ability) {
+            inputData.ability = "cha";
         }
 
-        if (inputData.data?.autoHeightenLevel) {
-            inputData.data.autoHeightenLevel.value ||= null;
+        if (inputData.autoHeightenLevel) {
+            inputData.autoHeightenLevel ||= null;
         }
 
-        this.object.data.update(inputData);
+        mergeObject(this.object, inputData);
 
         // If this wasn't a submit, only re-render and exit
         if (event.type !== "submit") {
@@ -81,39 +69,49 @@ class SpellcastingCreateAndEditDialog extends FormApplication<Embedded<Spellcast
     }
 
     private async updateAndClose(): Promise<void> {
-        const updateData = this.object.toObject();
+        const updateData = this.object;
+        console.log(updateData);
 
-        if (this.object.isRitual) {
-            updateData.data.tradition.value = "";
-            updateData.data.ability.value = "";
-        }
+        //         if (this.object.isRitual) {
+        //             updateData.tradition = "";
+        //             updateData.ability = "";
+        //         }
 
         if (!this.object.isPrepared) {
-            delete updateData.data.prepared.flexible;
+            delete updateData.prepared.flexible;
         }
 
-        if (this.object.id === null) {
-            const preparationType =
-                game.i18n.localize(CONFIG.PF2E.preparationType[updateData.data.prepared.value]) ?? "";
+        if (this.object.name === "UntitledPlaceholder") {
+            const preparationType = game.i18n.localize(CONFIG.PF2E.preparationType[updateData.prepared.value]) ?? "";
             const traditionSpells = game.i18n.localize(CONFIG.PF2E.magicTraditions[this.object.tradition]);
             updateData.name = this.object.isRitual
                 ? preparationType
                 : game.i18n.format("PF2E.SpellCastingFormat", { preparationType, traditionSpells });
 
-            await this.actor.createEmbeddedDocuments("Item", [updateData]);
+            await this.actor.spellcastingNew.createSpellcastingEntry({
+                name: updateData.name,
+                tradition: updateData.tradition,
+                ability: updateData.ability,
+                prepared: { value: updateData.prepared.value, flexible: updateData.prepared.flexible ?? undefined },
+                autoHeightenLevel: updateData.autoHeightenLevel,
+            });
         } else {
-            const actualEntry = this.actor.spellcasting.get(this.object.id);
-            const data = pick(updateData.data, ["prepared", "tradition", "ability", "autoHeightenLevel"]);
-            await actualEntry?.update({ data });
+            await this.actor.spellcastingNew.editSpellcastingEntry({
+                id: this.object.id,
+                tradition: updateData.tradition,
+                ability: updateData.ability,
+                prepared: { flexible: updateData.prepared.flexible },
+                autoHeightenLevel: updateData.autoHeightenLevel,
+            });
         }
 
         this.close();
     }
 }
 
-interface SpellcastingCreateAndEditDialogSheetData extends FormApplicationData<Embedded<SpellcastingEntryPF2e>> {
-    actor: ActorPF2e;
-    data: SpellcastingEntrySystemData;
+interface SpellcastingCreateAndEditDialogSheetData extends FormApplicationData<SpellcastingEntryPF2eNew> {
+    actor: CreaturePF2e;
+    data: SpellcastingEntry;
     magicTraditions: ConfigPF2e["PF2E"]["magicTraditions"];
     spellcastingTypes: ConfigPF2e["PF2E"]["preparationType"];
     abilities: ConfigPF2e["PF2E"]["abilities"];
@@ -121,9 +119,14 @@ interface SpellcastingCreateAndEditDialogSheetData extends FormApplicationData<E
 
 export async function createSpellcastingDialog(
     event: JQuery.ClickEvent,
-    object: ActorPF2e | Embedded<SpellcastingEntryPF2e>
+    actor: CreaturePF2e,
+    entryToAmend?: SpellcastingEntryPF2eNew
 ) {
-    const dialog = new SpellcastingCreateAndEditDialog(object, {
+    if (!(actor instanceof CharacterPF2e || actor instanceof NPCPF2e)) return;
+
+    const entry = entryToAmend ? entryToAmend : createEmptySpellcastingEntry(actor);
+
+    const dialog = new SpellcastingCreateAndEditDialog(actor, entry, {
         top: event.clientY - 80,
         left: window.innerWidth - 710,
         height: "auto",

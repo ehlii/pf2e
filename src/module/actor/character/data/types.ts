@@ -16,6 +16,7 @@ import {
     SkillData,
 } from "@actor/creature/data";
 import { CreatureSensePF2e } from "@actor/creature/sense";
+import { SpellcastingEntryOptions } from "@actor/creature/spellcasting";
 import {
     AbilityBasedStatistic,
     ActorFlagsPF2e,
@@ -151,6 +152,9 @@ interface CharacterSystemData extends CreatureSystemData {
         formulas: CraftingFormulaData[];
         entries: Record<string, Partial<CraftingEntryData>>;
     };
+
+    /** Actor spellcasting entries */
+    spellcastingEntries: SpellcastingEntryOptions[];
 }
 
 interface CharacterAbilityData extends AbilityData {

@@ -1,10 +1,12 @@
 import { LocalizePF2e } from "@module/system/localize";
 import { ConsumableData, ConsumableType } from "./data";
-import { ItemPF2e, PhysicalItemPF2e, SpellcastingEntryPF2e, SpellPF2e, WeaponPF2e } from "@item";
+import { ItemPF2e, PhysicalItemPF2e, SpellPF2e, WeaponPF2e } from "@item";
 import { ErrorPF2e } from "@util";
 import { ChatMessagePF2e } from "@module/chat-message";
 import { TrickMagicItemPopup } from "@actor/sheet/trick-magic-item-popup";
-import { TrickMagicItemEntry } from "@item/spellcasting-entry/trick";
+import { TrickMagicItemEntry } from "@actor/creature/spellcasting";
+import { CharacterPF2e } from "@actor";
+import { SpellcastingEntryPF2eNew } from "@actor/creature/spellcasting";
 
 class ConsumablePF2e extends PhysicalItemPF2e {
     get consumableType(): ConsumableType {
@@ -103,7 +105,8 @@ class ConsumablePF2e extends PhysicalItemPF2e {
         const { value, max } = this.charges;
 
         if (["scroll", "wand"].includes(this.data.data.consumableType.value) && this.data.data.spell.data) {
-            if (this.actor.spellcasting.canCastConsumable(this)) {
+            if (!(this.actor instanceof CharacterPF2e)) return;
+            if (this.actor.spellcastingNew.canCastConsumable(this)) {
                 this.castEmbeddedSpell();
             } else if (this.actor.itemTypes.feat.some((feat) => feat.slug === "trick-magic-item")) {
                 new TrickMagicItemPopup(this);
@@ -165,20 +168,21 @@ class ConsumablePF2e extends PhysicalItemPF2e {
         const spell = this.embeddedSpell;
         if (!spell) return;
         const actor = this.actor;
+        if (!(actor instanceof CharacterPF2e)) return;
 
         // Filter to only spellcasting entries that are eligible to cast this consumable
         const entry = (() => {
             if (trickMagicItemData) return trickMagicItemData;
 
-            const spellcastingEntries = actor.spellcasting.spellcastingFeatures.filter((entry) =>
+            const spellcastingEntries = actor.spellcastingNew.spellcastingFeatures.filter((entry) =>
                 spell.traditions.has(entry.tradition)
             );
 
             let maxBonus = 0;
             let bestEntry = 0;
             for (let i = 0; i < spellcastingEntries.length; i++) {
-                if (spellcastingEntries[i].data.data.spelldc.value > maxBonus) {
-                    maxBonus = spellcastingEntries[i].data.data.spelldc.value;
+                if (spellcastingEntries[i].spelldc.value > maxBonus) {
+                    maxBonus = spellcastingEntries[i].spelldc.value;
                     bestEntry = i;
                 }
             }
@@ -188,11 +192,10 @@ class ConsumablePF2e extends PhysicalItemPF2e {
 
         if (entry) {
             const systemData = spell.data.data;
-            if (entry instanceof SpellcastingEntryPF2e) {
+            if (entry instanceof SpellcastingEntryPF2eNew) {
                 systemData.location.value = entry.id;
             }
-
-            entry.cast(spell, { consume: false });
+            actor.spellcastingNew.cast(entry, spell, { consume: false });
         }
     }
 }

@@ -22,6 +22,7 @@ import { RollDataPF2e, RollParameters } from "@system/rolls";
 import { Statistic, StatisticCompatData } from "@system/statistic";
 import type { CreaturePF2e } from ".";
 import { CreatureSensePF2e, SenseAcuity, SenseType } from "./sense";
+import { SpellcastingEntryOptions } from "./spellcasting";
 import { Alignment, AlignmentTrait } from "./types";
 
 type BaseCreatureSource<
@@ -86,6 +87,8 @@ interface CreatureSystemData extends CreatureSystemSource, ActorSystemData {
     saves: CreatureSaves;
 
     actions?: StrikeData[];
+
+    spellcastingEntries?: SpellcastingEntryOptions[];
 }
 
 type CreatureType = typeof CREATURE_ACTOR_TYPES[number];

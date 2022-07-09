@@ -1,8 +1,7 @@
 import { ActorPF2e } from "@actor";
 import { ActorSheetDataPF2e } from "@actor/sheet/data-types";
 import { MeleePF2e, SpellPF2e, WeaponPF2e } from "@item";
-import { SpellcastingEntryData } from "@item/data";
-import { SpellcastingEntryListData } from "@item/spellcasting-entry/data";
+import { SpellcastingEntryListData } from "@actor/creature/spellcasting";
 import { ModifierPF2e } from "@actor/modifiers";
 import { TokenDocumentPF2e } from "@scene";
 import { CheckDC } from "@system/degree-of-success";
@@ -88,7 +87,7 @@ interface CreatureSheetData<TActor extends CreaturePF2e = CreaturePF2e> extends 
     };
 }
 
-type SpellcastingSheetData = RawObject<SpellcastingEntryData> & SpellcastingEntryListData;
+type SpellcastingSheetData = SpellcastingEntryListData;
 
 export {
     Alignment,

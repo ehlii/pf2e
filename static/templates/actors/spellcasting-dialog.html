@@ -2,7 +2,7 @@
     <div class="dialog-content" autocomplete="off">
         <div class="form-group">
             <label>{{localize "PF2E.SpellcastingTypeLabel"}}</label>
-            <select name="data.prepared.value" {{disabled object.id}}>
+            <select name="prepared.value" {{disabled (ne object.name "UntitledPlaceholder")}}>
             {{#select data.prepared.value}}
             {{#each spellcastingTypes as |label mode|}}
                 <option value="{{mode}}">{{localize label}}</option>
@@ -13,15 +13,15 @@
         {{#if object.isPrepared}}
             <div class="form-group">
                 <label>{{localize "PF2E.SpellFlexibleLabel"}}</label>
-                <input name="data.prepared.flexible" type="checkbox" {{checked data.prepared.flexible}}/>
+                <input name="prepared.flexible" type="checkbox" {{checked data.prepared.flexible}}/>
             </div>
         {{/if}}
         <hr/>
         {{#unless object.isRitual}}
             <div class="form-group">
                 <label>{{localize "PF2E.MagicTraditionLabel"}}</label>
-                <select name="data.tradition.value">
-                {{#select data.tradition.value}}
+                <select name="tradition">
+                {{#select data.tradition}}
                 {{#each magicTraditions as |label mode|}}
                     <option value="{{mode}}">{{localize label}}</option>
                 {{/each}}
@@ -30,8 +30,8 @@
             </div>
             <div class="form-group">
                 <label>{{localize "PF2E.SpellAbilityLabel"}}</label>
-                <select name="data.ability.value">
-                    {{#select data.ability.value}}
+                <select name="ability">
+                    {{#select data.ability}}
                         {{#each abilities as |label key|}}
                             <option value="{{key}}">{{localize label}}</option>
                         {{/each}}
@@ -41,8 +41,8 @@
             {{#if (eq actor.type "npc")}}
             <div class="form-group">
                 <label>{{localize "PF2E.SpellcastingSettings.AutoHeightenLabel"}}</label>
-                <select name="data.autoHeightenLevel.value" data-dtype="Number">
-                    {{#select data.autoHeightenLevel.value}}
+                <select name="autoHeightenLevel" data-dtype="Number">
+                    {{#select data.autoHeightenLevel}}
                         <option>{{localize "PF2E.SpellcastingSettings.AutoHeightenDefault"}}</option>
                         {{#times 10}}
                             <option value="{{add this 1}}">{{localize "PF2E.SpellLevel" level=(ordinal (add this 1))}}</option>
@@ -55,10 +55,10 @@
     </div>
     <div class="dialog-buttons">
         <button type="submit" class="dialog-button finish default">
-            {{#if object.id}}
-                {{localize "PF2E.UpdateLabelUniversal"}}
-            {{else}}
+            {{#if (eq object.name "UntitledPlaceholder")}}
                 {{localize "PF2E.CreateLabelUniversal"}}
+            {{else}}
+                {{localize "PF2E.UpdateLabelUniversal"}}
             {{/if}}
         </button>
     </div>

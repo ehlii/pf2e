@@ -8,7 +8,7 @@ import { TabData, PackInfo, TabName, TabType, SortDirection } from "./data";
 import { CheckboxData, RangesData } from "./tabs/data";
 import { getSelectedOrOwnActors } from "@util/token-actor-utils";
 import noUiSlider from "nouislider";
-import { SpellcastingEntryPF2e } from "@item";
+import { SpellcastingEntryPF2eNew } from "@actor/creature/spellcasting";
 import Tagify from "@yaireo/tagify";
 
 class PackLoader {
@@ -233,11 +233,11 @@ export class CompendiumBrowser extends Application {
         this.navigationTab.activate(tab, { triggerCallback: true });
     }
 
-    async openSpellTab(entry: SpellcastingEntryPF2e, level?: number | null) {
+    async openSpellTab(entry: SpellcastingEntryPF2eNew, level?: number | null) {
         const filter: string[] = [];
 
         if (entry.isRitual || entry.isFocusPool) {
-            filter.push("category-".concat(entry.data.data.prepared.value));
+            filter.push("category-".concat(entry.prepared.value));
         }
 
         if (level || level === 0) {
@@ -258,7 +258,7 @@ export class CompendiumBrowser extends Application {
         }
 
         if (entry.tradition && !entry.isFocusPool && !entry.isRitual) {
-            filter.push("traditions-".concat(entry.data.data.tradition.value));
+            filter.push("traditions-".concat(entry.tradition));
         }
 
         this.openTab("spell", filter);

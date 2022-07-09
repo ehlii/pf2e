@@ -1,7 +1,7 @@
 import { ConsumableData, ConsumableSource } from "@item/data";
 import { ConsumablePF2e } from "@item/index";
 import { SpellPF2e } from "@item/spell";
-import { TraditionSkills } from "@item/spellcasting-entry/trick";
+import { TraditionSkills } from "@actor/creature/spellcasting";
 import { calculateDC, DCOptions } from "@module/dc";
 import { ErrorPF2e } from "@util";
 

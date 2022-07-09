@@ -2,15 +2,16 @@ import { ActorPF2e } from "@actor";
 import { ItemSummaryRendererPF2e } from "@actor/sheet/item-summary-renderer";
 import { ItemPF2e, SpellPF2e } from "@item";
 import { ItemSourcePF2e, SpellSource } from "@item/data";
-import { SpellcastingEntryPF2e } from ".";
-import { SpellcastingEntryListData } from "./data";
+import { SpellcastingEntryListData, SpellcastingEntryPF2eNew } from "@actor/creature/spellcasting";
+import { CreaturePF2e } from "@actor";
+import { ErrorPF2e } from "@util";
 
 class SpellPreparationSheet extends ActorSheet<ActorPF2e, ItemPF2e> {
     /** Implementation used to handle the toggling and rendering of item summaries */
     itemRenderer: ItemSummaryRendererPF2e<ActorPF2e> = new ItemSummaryRendererPF2e(this);
 
-    constructor(public item: Embedded<SpellcastingEntryPF2e>, options: Partial<ActorSheetOptions>) {
-        super(item.actor, options);
+    constructor(public entry: SpellcastingEntryPF2eNew, actor: CreaturePF2e, options: Partial<ActorSheetOptions>) {
+        super(actor, options);
     }
 
     static override get defaultOptions(): ActorSheetOptions {
@@ -25,7 +26,7 @@ class SpellPreparationSheet extends ActorSheet<ActorPF2e, ItemPF2e> {
 
     /** Avoid conflicting with the real actor sheet */
     override get id(): string {
-        return `${super.id}-spellprep-${this.item.id}`;
+        return `${super.id}-spellprep-${this.entry.id}`;
     }
 
     override get title() {
@@ -50,10 +51,12 @@ class SpellPreparationSheet extends ActorSheet<ActorPF2e, ItemPF2e> {
     }
 
     override async getData(): Promise<SpellPreparationSheetData> {
+        if (!(this.actor instanceof CreaturePF2e)) throw ErrorPF2e("Running on a non-creature actor");
+
         return {
             ...(await super.getData()),
             owner: this.actor.isOwner,
-            entry: this.item.getSpellData(),
+            entry: this.actor.spellcastingNew.getSpellData(this.entry.id),
         };
     }
 
@@ -96,7 +99,7 @@ class SpellPreparationSheet extends ActorSheet<ActorPF2e, ItemPF2e> {
             data.name = `${newLabel} ${levelLabel} ${spellLabel}`;
             mergeObject(data, {
                 "data.level.value": level,
-                "data.location.value": this.item.id,
+                "data.location.value": this.entry.id,
             });
 
             this.actor.createEmbeddedDocuments("Item", [data]);
@@ -104,7 +107,7 @@ class SpellPreparationSheet extends ActorSheet<ActorPF2e, ItemPF2e> {
 
         $html.find(".spell-browse").on("click", (event) => {
             const level = Number($(event.currentTarget).attr("data-level")) ?? null;
-            game.pf2e.compendiumBrowser.openSpellTab(this.item, level);
+            game.pf2e.compendiumBrowser.openSpellTab(this.entry, level);
         });
     }
 
@@ -119,7 +122,7 @@ class SpellPreparationSheet extends ActorSheet<ActorPF2e, ItemPF2e> {
         const sources = Array.isArray(itemSource) ? itemSource : [itemSource];
         const spellSources = sources.filter((source): source is SpellSource => source.type === "spell");
         for (const spellSource of spellSources) {
-            spellSource.data.location.value = this.item.id;
+            spellSource.data.location.value = this.entry.id;
         }
 
         return super._onDropItemCreate(spellSources);
@@ -128,10 +131,11 @@ class SpellPreparationSheet extends ActorSheet<ActorPF2e, ItemPF2e> {
     /** Allow transferring spells between open windows */
     protected override async _onSortItem(event: ElementDragEvent, itemData: ItemSourcePF2e): Promise<ItemPF2e[]> {
         if (itemData.type !== "spell") return [];
+        if (!(this.actor instanceof CreaturePF2e)) throw ErrorPF2e("Running on a non-creature actor");
 
         const spell = this.actor.items.get(itemData._id);
-        if (itemData.data.location.value !== this.item.id && spell instanceof SpellPF2e) {
-            const addedSpell = await this.item.spells.addSpell(spell);
+        if (itemData.data.location.value !== this.entry.id && spell instanceof SpellPF2e) {
+            const addedSpell = await this.entry.spells.addSpell(spell);
             return [addedSpell ?? []].flat();
         }
 

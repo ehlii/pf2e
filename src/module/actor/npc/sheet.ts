@@ -77,7 +77,10 @@ export class NPCSheetPF2e<TActor extends NPCPF2e> extends CreatureSheetPF2e<TAct
         sheetData.effectItems = sheetData.items.filter(
             (data): data is NPCSheetItemData<EffectData> => data.type === "effect"
         );
+
+        // Technically not an item anymore
         sheetData.spellcastingEntries = this.prepareSpellcasting();
+        console.log(sheetData);
     }
 
     private getIdentifyCreatureData(): IdentifyCreatureData {
@@ -482,14 +485,16 @@ export class NPCSheetPF2e<TActor extends NPCPF2e> extends CreatureSheetPF2e<TAct
 
         const $input: JQuery<HTMLInputElement | HTMLSelectElement> = $(event.currentTarget);
         const itemId = $input.closest(".spellcasting-entry").attr("data-container-id") ?? "";
-        const key = $input.attr("data-base-property")?.replace(/data\.items\.\d+\./, "") ?? "";
+        const key = $input.attr("data-base-property") ?? "";
         const value =
             $input.hasClass("focus-points") || $input.hasClass("focus-pool")
                 ? Math.min(Number($input.val()), 3)
                 : $input.is("select")
                 ? String($input.val())
                 : Number($input.val());
-        await this.actor.updateEmbeddedDocuments("Item", [{ _id: itemId, [key]: value }]);
+        if (key.startsWith("spelldc") || key === "ability") {
+            this.actor.spellcastingNew.editSpellcastingEntry({ id: itemId, [key]: value as string });
+        }
     }
 
     protected override async _updateObject(event: Event, formData: Record<string, unknown>): Promise<void> {

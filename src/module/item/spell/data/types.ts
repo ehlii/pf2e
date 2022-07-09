@@ -133,6 +133,23 @@ interface SpellSystemSource extends ItemSystemSource, ItemLevelData {
 
         /** Number of uses if this is an innate spell */
         uses?: ValueAndMax;
+
+        /** Spell frequency if this is an innate spell */
+        frequency?:
+            | "round"
+            | "10m"
+            | "hour"
+            | "day"
+            | "week"
+            | "atwill"
+            | "divine"
+            | "wish"
+            | "constant"
+            | "transformation"
+            | "manifestation"
+            | "death"
+            | "PFS"
+            | "infusion";
     };
 }
 

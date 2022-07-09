@@ -102,6 +102,8 @@ import { CHARACTER_SHEET_TABS } from "./data/values";
 import { CharacterFeats } from "./feats";
 import { StrikeWeaponTraits } from "./strike-weapon-traits";
 import { CharacterHitPointsSummary, CharacterSkills, CreateAuxiliaryParams } from "./types";
+import { OneToFour } from "@module/data";
+import { SpellcastingEntryPF2eNew, ActorSpellcastingNew } from "@actor/creature/spellcasting";
 
 class CharacterPF2e extends CreaturePF2e {
     /** Core singular embeds for PCs */
@@ -457,9 +459,6 @@ class CharacterPF2e extends CreaturePF2e {
             99.5
         );
 
-        // Get the itemTypes object only once for the entire run of the method
-        const itemTypes = this.itemTypes;
-
         // PFS Level Bump - check and DC modifiers
         if (systemData.pfs.levelBump) {
             const modifiersAll = (statisticsModifiers.all ??= []);
@@ -722,51 +721,16 @@ class CharacterPF2e extends CreaturePF2e {
             return (l.weapon?.data.sort ?? 0) - (r.weapon?.data.sort ?? 0);
         });
 
-        // Spellcasting Entries
-        for (const entry of itemTypes.spellcastingEntry) {
-            const { ability, tradition } = entry;
-            const rank = (entry.data.data.proficiency.value = entry.rank);
-
-            const baseSelectors = ["all", `${ability}-based`, "spell-attack-dc"];
-            const attackSelectors = [
-                `${tradition}-spell-attack`,
-                "spell-attack",
-                "spell-attack-roll",
-                "attack",
-                "attack-roll",
-            ];
-            const saveSelectors = [`${tradition}-spell-dc`, "spell-dc"];
-
-            // assign statistic data to the spellcasting entry
-            entry.statistic = new Statistic(this, {
-                slug: sluggify(entry.name),
-                label: CONFIG.PF2E.magicTraditions[tradition],
-                ability: entry.ability,
-                rank,
-                modifiers: extractModifiers(synthetics, baseSelectors),
-                notes: extractNotes(rollNotes, [...baseSelectors, ...attackSelectors]),
-                domains: baseSelectors,
-                rollOptions: entry.getRollOptions("spellcasting"),
-                check: {
-                    type: "spell-attack-roll",
-                    modifiers: extractModifiers(synthetics, attackSelectors),
-                    domains: attackSelectors,
-                },
-                dc: {
-                    modifiers: extractModifiers(synthetics, saveSelectors),
-                    domains: saveSelectors,
-                },
-            });
-
-            entry.data.data.statisticData = entry.statistic.getChatData();
-        }
+        // Spellcasting Entries (New)
+        this.prepareSpellcasting();
 
         // Expose best spellcasting DC to character attributes
-        if (itemTypes.spellcastingEntry.length > 0) {
-            const best = itemTypes.spellcastingEntry.reduce((previous, current) => {
-                return current.statistic.dc.value > previous.statistic.dc.value ? current : previous;
-            });
-            this.data.data.attributes.spellDC = { rank: best.statistic.rank ?? 0, value: best.statistic.dc.value };
+        if (this.spellcastingNew.size > 0) {
+            const test = new SpellcastingEntryPF2eNew(this, {});
+            const best = this.spellcastingNew.reduce((prev, curr) => {
+                return curr.statisticData.dc.value > prev.statisticData.dc.value ? curr : prev;
+            }, test);
+            this.data.data.attributes.spellDC = { rank: best.rank, value: best.statisticData.dc.value };
         } else {
             this.data.data.attributes.spellDC = null;
         }
@@ -793,8 +757,9 @@ class CharacterPF2e extends CreaturePF2e {
         const { focus, crafting } = this.data.data.resources;
         focus.max = Math.clamped(focus.max, 0, focus.cap);
         crafting.infusedReagents.value = Math.clamped(crafting.infusedReagents.value, 0, crafting.infusedReagents.max);
+
         // Ensure the character has a focus pool of at least one point if they have a focus spellcasting entry
-        if (focus.max === 0 && this.spellcasting.regular.some((entry) => entry.isFocusPool)) {
+        if (focus.max === 0 && this.spellcastingNew.regular.some((entry) => entry.isFocusPool)) {
             focus.max = 1;
         }
 
@@ -812,6 +777,8 @@ class CharacterPF2e extends CreaturePF2e {
                 console.error(`PF2e | Failed to execute onAfterPrepareData on rule element ${rule}.`, error);
             }
         }
+
+        console.log(this);
     }
 
     private setAbilityScores(): void {
@@ -1841,6 +1808,54 @@ class CharacterPF2e extends CreaturePF2e {
         return action;
     }
 
+    override prepareSpellcasting(): void {
+        super.prepareSpellcasting();
+
+        const systemData = this.data.data;
+
+        // Convert all spellcasting entry data into a spellcasting entry object
+        const spellcastingEntries = systemData.spellcastingEntries.map((entry) => {
+            return new SpellcastingEntryPF2eNew(this, {
+                id: entry.id,
+                name: entry.name,
+                ability: entry.ability,
+                tradition: entry.tradition,
+                prepared: entry.prepared,
+                slots: entry.slots,
+                showSlotlessLevels: entry.showSlotlessLevels,
+                proficiency: entry.proficiency,
+                sort: entry.sort,
+                autoHeightenLevel: entry.autoHeightenLevel,
+            });
+        });
+
+        for (const entry of spellcastingEntries) {
+            // Set spellcasting rank for the entry
+            const traditions = systemData.proficiencies.traditions;
+            if (entry.isInnate) {
+                const allRanks = Array.from(MAGIC_TRADITIONS).map((t) => traditions[t].rank);
+                entry.rank = Math.max(1, entry.proficiency, ...allRanks) as OneToFour;
+            } else {
+                entry.rank = Math.max(entry.proficiency, traditions[entry.tradition].rank) as OneToFour;
+            }
+
+            // Set highest spellcasting level
+            const highestSpell = Math.max(...entry.spells.map((s) => s.level));
+            const actorSpellLevel = Math.ceil((this.level ?? 0) / 2);
+            entry.highestLevel = Math.min(10, Math.max(highestSpell, actorSpellLevel));
+
+            // Statistic data
+            const stat = entry.generateStatistic();
+            entry.statistic = stat;
+            entry.statisticData = stat.getChatData();
+        }
+
+        this.spellcastingNew = new ActorSpellcastingNew(
+            this,
+            spellcastingEntries.sort((a, b) => a.sort - b.sort)
+        );
+    }
+
     getStrikeDescription(weapon: WeaponPF2e): { description: string; criticalSuccess: string; success: string } {
         const flavor = {
             description: "PF2E.Strike.Default.Description",
@@ -2052,6 +2067,30 @@ class CharacterPF2e extends CreaturePF2e {
                 changed.data.pfs[property] = Math.clamped(changed.data.pfs[property] || 0, min, max);
             } else if (changed.data?.pfs && changed.data.pfs[property] !== null) {
                 changed.data.pfs[property] = this.data.data.pfs[property] ?? null;
+            }
+        }
+
+        // Clamp spell slot updates
+        if (changed.data?.spellcastingEntries) {
+            for (const entry of changed.data.spellcastingEntries) {
+                if (entry instanceof SpellcastingEntryPF2eNew) {
+                    for (const key of [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const) {
+                        const slotKey = `slot${key}` as const;
+                        const slotData = entry.slots[slotKey];
+                        if (!slotData) continue;
+
+                        const currEntry = this.spellcastingNew.get(entry.id);
+
+                        if ("max" in slotData) {
+                            slotData.max = Math.max(Number(slotData.max) || 0, 0);
+                        }
+                        if ("value" in slotData) {
+                            const max =
+                                "max" in slotData ? Number(slotData?.max) || 0 : currEntry?.slots[slotKey].max || 0;
+                            slotData.value = Math.clamped(Number(slotData.value), 0, max);
+                        }
+                    }
+                }
             }
         }
 

@@ -7,9 +7,10 @@ import {
     StatisticModifier,
 } from "@actor/modifiers";
 import { AbilityString } from "@actor/types";
-import { ItemConstructionContextPF2e, ItemPF2e, SpellcastingEntryPF2e } from "@item";
+import { SpellcastingEntryPF2eNew } from "@actor/creature/spellcasting";
+import { ItemConstructionContextPF2e, ItemPF2e } from "@item";
 import { ItemSourcePF2e } from "@item/data";
-import { TrickMagicItemEntry } from "@item/spellcasting-entry/trick";
+import { TrickMagicItemEntry } from "@actor/creature/spellcasting";
 import { GhostTemplate } from "@module/canvas/ghost-measured-template";
 import { ChatMessagePF2e } from "@module/chat-message";
 import { OneToTen } from "@module/data";
@@ -80,9 +81,13 @@ class SpellPF2e extends ItemPF2e {
             : new Set(this.data.data.traditions.value);
     }
 
-    get spellcasting(): SpellcastingEntryPF2e | undefined {
+    get spellcasting(): SpellcastingEntryPF2eNew | undefined {
         const spellcastingId = this.data.data.location.value;
-        return this.actor?.spellcasting.find((entry) => entry.id === spellcastingId);
+        if (this.actor instanceof CharacterPF2e || this.actor instanceof NPCPF2e) {
+            return this.actor?.spellcastingNew?.get(spellcastingId);
+        }
+
+        return undefined;
     }
 
     get isCantrip(): boolean {
@@ -138,7 +143,7 @@ class SpellPF2e extends ItemPF2e {
         if (isAutoScaling && this.actor) {
             return (
                 this.data.data.location.autoHeightenLevel ||
-                this.spellcasting?.data.data.autoHeightenLevel.value ||
+                this.spellcasting?.autoHeightenLevel ||
                 Math.ceil(this.actor.level / 2)
             );
         }
@@ -161,7 +166,7 @@ class SpellPF2e extends ItemPF2e {
         if (this.actor instanceof CharacterPF2e || this.actor instanceof NPCPF2e) {
             const spellcasting = this.spellcasting;
             const { abilities } = this.actor.data.data;
-            if (!spellcasting?.data && this.trickMagicEntry) {
+            if (!spellcasting && this.trickMagicEntry) {
                 rollData["mod"] = abilities[this.trickMagicEntry.ability].mod;
             } else {
                 rollData["mod"] = abilities[spellcasting?.ability ?? "int"].mod;
@@ -441,6 +446,8 @@ class SpellPF2e extends ItemPF2e {
         rollOptions: { spellLvl?: number | string } = {}
     ): Record<string, unknown> {
         if (!this.actor) throw ErrorPF2e(`Cannot retrieve chat data for unowned spell ${this.name}`);
+        if (!(this.actor instanceof CharacterPF2e || this.actor instanceof NPCPF2e))
+            throw ErrorPF2e(`Attempting to cast spell on non-creature actor`);
         const level = this.computeCastLevel(Number(rollOptions?.spellLvl) || this.level);
 
         // Load the heightened version of the spell if one exists
@@ -584,10 +591,12 @@ class SpellPF2e extends ItemPF2e {
         attackNumber = 1,
         context: StatisticRollParameters = {}
     ): Promise<void> {
+        if (!(this.actor instanceof CharacterPF2e || this.actor instanceof NPCPF2e))
+            throw ErrorPF2e(`Attempting to cast spell on non-creature actor`);
         // Prepare roll data
         const trickMagicEntry = this.trickMagicEntry;
-        const spellcastingEntry = this.spellcasting;
-        const statistic = (trickMagicEntry ?? spellcastingEntry)?.statistic;
+        const spellcasting = this.spellcasting;
+        const statistic = trickMagicEntry?.statistic ?? spellcasting?.statistic;
 
         if (statistic) {
             await statistic.check.roll({ ...eventToRollParams(event), ...context, item: this, attackNumber });
@@ -648,12 +657,12 @@ class SpellPF2e extends ItemPF2e {
         if (!(this.actor instanceof CharacterPF2e || this.actor instanceof NPCPF2e)) return;
 
         const spellcastingEntry = this.trickMagicEntry ?? this.spellcasting;
-        if (!(spellcastingEntry instanceof SpellcastingEntryPF2e)) {
+        if (!(spellcastingEntry instanceof SpellcastingEntryPF2eNew)) {
             throw ErrorPF2e("Spell points to location that is not a spellcasting type");
         }
 
         const modifiers: ModifierPF2e[] = [];
-        const ability: AbilityString = spellcastingEntry.data.data.ability?.value || "int";
+        const ability: AbilityString = spellcastingEntry.ability;
         const score = this.actor.abilities[ability]?.value ?? 0;
         modifiers.push(AbilityModifier.fromScore(ability, score));
 

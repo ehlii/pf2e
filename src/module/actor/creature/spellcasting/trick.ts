@@ -1,9 +1,8 @@
 import { CharacterPF2e } from "@actor";
 import { AbilityString } from "@actor/types";
-import { SpellPF2e } from "@item";
 import { extractModifiers } from "@module/rules/util";
 import { Statistic } from "@system/statistic";
-import { BaseSpellcastingEntry } from "./data";
+import { BaseSpellcastingEntry } from "./types";
 
 export const TRICK_MAGIC_SKILLS = ["arc", "nat", "occ", "rel"] as const;
 export type TrickMagicItemSkill = typeof TRICK_MAGIC_SKILLS[number];
@@ -25,6 +24,8 @@ export const TraditionSkills = {
 /** A pseudo spellcasting entry used to trick magic item for a single skill */
 export class TrickMagicItemEntry implements BaseSpellcastingEntry {
     id = `trick-${this.skill}`;
+
+    name = `trick-${this.skill}`;
 
     statistic: Statistic;
 
@@ -76,15 +77,5 @@ export class TrickMagicItemEntry implements BaseSpellcastingEntry {
                 domains: saveSelectors,
             },
         });
-    }
-
-    async cast(spell: SpellPF2e, options: { level?: number } = {}): Promise<void> {
-        const level = options.level ?? spell.level;
-        try {
-            spell.trickMagicEntry = this;
-            await spell.toMessage(undefined, { data: { spellLvl: level } });
-        } finally {
-            spell.trickMagicEntry = null;
-        }
     }
 }

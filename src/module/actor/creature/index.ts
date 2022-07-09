@@ -58,9 +58,13 @@ import {
     StrikeRollContextParams,
 } from "./types";
 import { SIZE_TO_REACH } from "./values";
+import { ActorSpellcastingNew } from "./spellcasting";
 
 /** An "actor" in a Pathfinder sense rather than a Foundry one: all should contain attributes and abilities */
 export abstract class CreaturePF2e extends ActorPF2e {
+    /** A collection of spellcasting entries on the actor data */
+    spellcastingNew!: ActorSpellcastingNew;
+
     /** Skill `Statistic`s for the creature */
     get skills(): CreatureSkills {
         return Object.entries(this.data.data.skills).reduce((current, [shortForm, skill]) => {
@@ -193,8 +197,7 @@ export abstract class CreaturePF2e extends ActorPF2e {
     }
 
     get isSpellcaster(): boolean {
-        const { itemTypes } = this;
-        return itemTypes.spellcastingEntry.length > 0 && itemTypes.spell.length > 0;
+        return (this.data.data.spellcastingEntries?.length ?? []) > 0 && this.itemTypes.spell.length > 0;
     }
 
     get perception(): Statistic {
@@ -740,6 +743,34 @@ export abstract class CreaturePF2e extends ActorPF2e {
                 )
                 .join(", ");
             return stat;
+        }
+    }
+
+    // Base preparation of spellcasting entries - sets to blank if needed, and copies over any legacy item spellcasting entries
+    // Additionally, returns a list of spellcasting entry objects
+    prepareSpellcasting(): void {
+        const systemData = this.data.data;
+
+        // Correct for any characters/npcs with no spellcasting entries
+        if (systemData.spellcastingEntries === undefined) systemData.spellcastingEntries = [];
+
+        // Move all old spellcasting item entries into new format on character
+        for (const entry of this.itemTypes.spellcastingEntry) {
+            if (!systemData.spellcastingEntries.some((e) => e.id === entry.id)) {
+                const newEntry = {
+                    id: entry.id,
+                    name: entry.name,
+                    ability: entry.ability,
+                    tradition: entry.tradition,
+                    prepared: entry.data.data.prepared,
+                    slots: entry.data.data.slots,
+                    showSlotlessLevels: entry.data.data.showSlotlessLevels.value,
+                    proficiency: entry.data.data.proficiency.value,
+                    sort: entry.data.sort,
+                    autoHeightenLevel: entry.data.data.autoHeightenLevel.value,
+                };
+                systemData.spellcastingEntries.push(newEntry);
+            }
         }
     }
 

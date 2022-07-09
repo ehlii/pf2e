@@ -10,7 +10,7 @@ import { ChatMessageDataPF2e, ChatMessageSourcePF2e } from "./data";
 import { TokenDocumentPF2e } from "@scene";
 import { SetAsInitiative } from "./listeners/set-as-initiative";
 import { UserVisibilityPF2e } from "@scripts/ui/user-visibility";
-import { TraditionSkills, TrickMagicItemEntry } from "@item/spellcasting-entry/trick";
+import { TraditionSkills, TrickMagicItemEntry } from "@actor/creature/spellcasting";
 import { ErrorPF2e } from "@util";
 import { UserPF2e } from "@module/user";
 import { CheckRoll } from "@system/check/roll";

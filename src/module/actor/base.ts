@@ -30,7 +30,6 @@ import { ActorSizePF2e } from "./data/size";
 import { ActorInventory } from "./inventory";
 import { ItemTransfer } from "./item-transfer";
 import { ActorSheetPF2e } from "./sheet/base";
-import { ActorSpellcasting } from "./spellcasting";
 import { TokenEffect } from "./token-effect";
 import { CREATURE_ACTOR_TYPES } from "./values";
 
@@ -44,9 +43,6 @@ class ActorPF2e extends Actor<TokenDocumentPF2e, ItemTypeMap> {
 
     /** A separate collection of owned physical items for convenient access */
     inventory!: ActorInventory;
-
-    /** A separate collection of owned spellcasting entries for convenience */
-    spellcasting!: ActorSpellcasting;
 
     /** Rule elements drawn from owned items */
     rules!: RuleElementPF2e[];
@@ -500,9 +496,6 @@ class ActorPF2e extends Actor<TokenDocumentPF2e, ItemTypeMap> {
             (item) => item instanceof PhysicalItemPF2e
         );
         this.inventory = new ActorInventory(this, physicalItems);
-
-        const spellcastingEntries = this.itemTypes.spellcastingEntry;
-        this.spellcasting = new ActorSpellcasting(this, spellcastingEntries);
 
         // Track all effects on this actor
         for (const effect of this.itemTypes.effect) {

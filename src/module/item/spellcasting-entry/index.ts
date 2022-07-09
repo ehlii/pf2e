@@ -89,17 +89,17 @@ class SpellcastingEntryPF2e extends ItemPF2e implements SpellcastingEntry {
         this.data.data.proficiency.value = Math.max(1, this.data.data.proficiency.value) as OneToFour;
     }
 
-    override prepareSiblingData(): void {
-        if (this.actor) {
-            this.spells = new SpellCollection(this as Embedded<SpellcastingEntryPF2e>);
-            const spells = this.actor.itemTypes.spell.filter((i) => i.data.data.location.value === this.id);
-            for (const spell of spells) {
-                this.spells.set(spell.id, spell);
-            }
-
-            this.actor.spellcasting.collections.set(this.spells.id, this.spells);
-        }
-    }
+    //     override prepareSiblingData(): void {
+    //         if (this.actor) {
+    //             this.spells = new SpellCollection(this as Embedded<SpellcastingEntryPF2e>);
+    //             const spells = this.actor.itemTypes.spell.filter((i) => i.data.data.location.value === this.id);
+    //             for (const spell of spells) {
+    //                 this.spells.set(spell.id, spell);
+    //             }
+    //
+    //             this.actor.spellcasting.collections.set(this.spells.id, this.spells);
+    //         }
+    //     }
 
     override prepareActorData(this: Embedded<SpellcastingEntryPF2e>): void {
         // Upgrade the actor proficiency using the internal ones
